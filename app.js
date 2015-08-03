@@ -7,50 +7,24 @@ var app = require('koa')()
   , Promise = require('bluebird')
   , bodyParser = require('koa-bodyparser')
   , views = require('koa-render')
+  , React = require('react/addons')
+  , Quiz = require('./jsx/Quiz.jsx')
+  , quizClass = require('./controllers/Quiz')
+  , quizController = new quizClass()
   , env = (typeof process.env.CUSTOM_ENV === 'undefined')? 'localhost':
       (process.env.CUSTOM_ENV === 'qa')? 'qa': 'prod'
-/*
-  , redisHost = (env === 'localhost')? '127.0.0.1':
-      (env === 'qa') ? 'elasticache': '127.0.0.1'
-  , redis = require('redis').createClient(6379, redisHost)
-  , session = require('koa-generic-session')
-  , redisStore = require('koa-redis')
-*/
-  , react = require('react')
-  // , quiz = react.createFactory(require('./public/js/views/quiz.js').Quiz)
-  // , quizController = require('./controllers/Quiz')
-  // , quiz = new quizController()
   , general = new Router();
 
 // Hook the .jsx extension.
-require('node-jsx').install({ harmony: true, extension: '.jsx' });
+// require('node-jsx').install({ harmony: true, extension: '.jsx' });
 
 app.use(bodyParser());
 
 // GZIP responses.
 app.use(gzip());
 
+// Use koa-static for css, js and images.
 app.use(serve(__dirname+'/public'))
-
-// TODO - Make the following session key an environment variable
-// and read it in with process.env("SESSION_SECRET")
-/*
-app.keys = ['4m4cm1ll4n'];
-app.use(session({
-  cookie: {
-    path: '/',
-    httpOnly: true,
-    // maxage: null,
-    maxage: 1209600000,
-    rewrite: true,
-    signed: true
-  },
-  key: 'userSessID',
-  store: redisStore({
-    client: redis
-  })
-}));
-*/
 
 // custom 404
 app.use(function *(next) {
@@ -62,7 +36,7 @@ app.use(function *(next) {
     if (e.status !== 404) throw e;
     err = e;
   }
-  // handle "unhandled" requests, `this.status = 404`s, and 404 errors
+  // Handle "unhandled" requests, `this.status = 404`s, and 404 errors
   var status = this.status = (err && err.status) || this.status || 404
   if (status !== 404) return;
 
@@ -85,11 +59,43 @@ app.use(views('./views', {
 }));
 
 general.get('/', function*() {
-    var data = {};
-    var content = react.renderToString(quiz(data));
-    this.body = yield this.render('test', {
-      props.safeStringify(data)
-    });
+  this.redirect('/hypothetical-university/2015/fall/math-101/quiz-1');
+  // this.body = yield this.render('index', { });
+});
+
+general.get('/api/hypothetical-university/2015/fall/math-101/quiz-1', function*() {
+  let submissions = yield *quizController.getSubmissions(this);
+  this.body = JSON.stringify({
+    'question': 'Is 1,024^2 equal to 1,048,576 ?',
+    'answers': ['True', 'False'],
+    'submissions': submissions
+  });
+});
+
+general.post('/api/quiz', function*() {
+  let bd = this.request.body;
+  yield *quizController.postSubmission(bd.answer, bd.name, this);
+});
+
+general.get('/thank-you', function*() {
+  this.body = yield this.render('thankyou', { });
+});
+
+// This route uses server-side rendering for the quiz.
+general.get('/hypothetical-university/2015/fall/math-101/quiz-1', function*() {
+  var quizContent = React.renderToString(<Quiz />);
+  this.body = yield this.render('quiz', {
+    quiz: quizContent
+  });
+});
+
+// This route uses client-side rendering for React/D3 charts.
+general.get('/overview', function*() {
+  this.body = yield this.render('overview', { });
+});
+
+general.get('/webcam', function*() {
+  this.body = yield this.render('webcam', { });
 });
 
 // TODO: Figure out what to do with this.
@@ -104,11 +110,6 @@ app.use(function *(next) {
 });
 
 app.use(general.middleware());
-
-// A utility function to safely escape JSON for embedding in a <script> tag
-function safeStringify(obj) {
-  return JSON.stringify(obj).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--')
-}
 
 // start server
 app.listen(process.env.PORT || 3000) 
