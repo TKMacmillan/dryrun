@@ -38,7 +38,7 @@ insert into answers (question_id, answer, is_correct) values (1, 'True', true) r
 insert into answers (question_id, answer, is_correct) values (1, 'False', false) returning *;
 
 **Run the following to start the app server:
-nodemon --harmony --watch app.js entrypoint.js
+nodemon --use-strict app.js
 
 **Go to the following URL to see the server-rendered react componet (it's a quiz): 
 http://localhost:3000
